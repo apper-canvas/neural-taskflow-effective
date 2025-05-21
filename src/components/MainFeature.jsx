@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, forwardRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getIcon } from '../utils/iconUtils'
 import { toast } from 'react-toastify'
@@ -42,9 +42,9 @@ const PriorityBadge = ({ priority }) => {
 }
 
 // Task Item Component
-const TaskItem = ({ task, onToggleComplete, onDelete, onEdit }) => {
+const TaskItem = forwardRef(({ task, onToggleComplete, onDelete, onEdit }, ref) => {
   return (
-    <motion.div
+    <motion.div ref={ref}
       layout
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
@@ -128,7 +128,7 @@ const TaskItem = ({ task, onToggleComplete, onDelete, onEdit }) => {
     </motion.div>
   )
 }
-
+)
 // Task Form Component
 const TaskForm = ({ onSubmit, initialTask = null, onCancel }) => {
   const [formData, setFormData] = useState({
