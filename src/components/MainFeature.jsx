@@ -1,7 +1,13 @@
 import { useState, useRef, useEffect, forwardRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getIcon } from '../utils/iconUtils'
-import { toast } from 'react-toastify'
+import { toast } from 'react-toastify' 
+import { 
+  fetchTasks, createTask, updateTask, deleteTask, toggleTaskCompletion 
+} from '../services/taskService'
+import { getOrCreateTags } from '../services/tagService'
+import { useSelector } from 'react-redux'
+
 import { format } from 'date-fns'
 
 // Initialize icons
@@ -375,137 +381,158 @@ const EmptyState = ({ onAddNew }) => {
 
 // Main Feature Component
 const MainFeature = ({ activeTab }) => {
-  // Sample initial tasks data
-  const initialTasks = [
-    {
-      id: '1',
-      title: 'Complete project proposal',
-      description: 'Finish the draft and send for review',
-      completed: false,
-      priority: 'high',
-      dueDate: '2023-12-31',
-      tags: ['work', 'project']
-    },
-    {
-      id: '2',
-      title: 'Buy groceries',
-      description: 'Milk, eggs, bread, and vegetables',
-      completed: false,
-      priority: 'medium',
-      dueDate: '2023-12-25',
-      tags: ['personal', 'shopping']
-    },
-    {
-      id: '3',
-      title: 'Schedule dentist appointment',
-      description: '',
-      completed: true,
-      priority: 'low',
-      dueDate: '2023-12-20',
-      tags: ['health']
-    }
-  ]
-  
   // State
-  const [tasks, setTasks] = useState(() => {
-    // Try to load from localStorage first
-    const savedTasks = localStorage.getItem('taskflow-tasks')
-    return savedTasks ? JSON.parse(savedTasks) : initialTasks
-  })
+  const [tasks, setTasks] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const { user } = useSelector(state => state.user)
   
   const [isAddingTask, setIsAddingTask] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
   const [filter, setFilter] = useState({
     search: '',
     priority: '',
-    sortDirection: 'desc' // newest first
+    sortDirection: 'desc', // newest first
   })
   
-  // Save tasks to localStorage whenever they change
+  // Load tasks when component mounts or filters change
   useEffect(() => {
-    localStorage.setItem('taskflow-tasks', JSON.stringify(tasks))
-  }, [tasks])
-  
-  // Filtering and sorting logic
-  const getFilteredTasks = () => {
-    let filtered = [...tasks]
-    
-    // Filter by active tab
-    if (activeTab === 'today') {
-      const today = new Date().toISOString().split('T')[0]
-      filtered = filtered.filter(task => task.dueDate === today)
-    } else if (activeTab === 'upcoming') {
-      const today = new Date().toISOString().split('T')[0]
-      filtered = filtered.filter(task => task.dueDate > today)
-    } else if (activeTab === 'completed') {
-      filtered = filtered.filter(task => task.completed)
+    const loadTasks = async () => {
+      setLoading(true)
+      setError(null)
+      
+      try {
+        // Build filters based on activeTab
+        const apiFilters = { ...filter }
+        
+        if (activeTab === 'completed') {
+          apiFilters.completed = true
+        } else if (activeTab === 'today') {
+          apiFilters.dueDate = new Date().toISOString().split('T')[0]
+        } else if (activeTab === 'upcoming') {
+          // The API will handle upcoming dates in fetchTasks
+        }
+        
+        const fetchedTasks = await fetchTasks(apiFilters)
+        setTasks(fetchedTasks)
+      } catch (err) {
+        setError('Failed to load tasks. Please try again.')
+        toast.error('Error loading tasks')
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
     }
     
-    // Apply search filter
-    if (filter.search) {
-      const searchLower = filter.search.toLowerCase()
-      filtered = filtered.filter(task => 
-        task.title.toLowerCase().includes(searchLower) || 
-        task.description.toLowerCase().includes(searchLower) ||
-        task.tags.some(tag => tag.toLowerCase().includes(searchLower))
+    loadTasks()
+  }, [activeTab, filter])
+  
+        {loading ? (
+          // Loading state
+          <div className="py-10 flex flex-col items-center justify-center">
+            <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-surface-600 dark:text-surface-300">Loading tasks...</p>
+          </div>
+        ) : error ? (
+          // Error state
+          <div className="py-10 flex flex-col items-center justify-center text-center">
+            <div className="w-16 h-16 mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+              <XIcon className="h-8 w-8 text-red-500" />
+            </div>
+            <h3 className="text-lg font-medium text-red-600 dark:text-red-400 mb-2">
+              Error Loading Tasks
+            </h3>
+            <p className="text-surface-600 dark:text-surface-400 max-w-md mb-6">
+              {error}
+            </p>
+          </div>
+        ) : (
+          <AnimatePresence mode="popLayout">
+            {tasks.length > 0 ? (
+              tasks.map(task => (
+                  key={task.id}
+                  task={task}
+                  onToggleComplete={handleToggleComplete}
+                  onDelete={handleDeleteTask}
+                  onEdit={setEditingTask}
+                />
+              ))
+            ) : (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                key="empty-state"
+              >
+                <EmptyState onAddNew={() => setIsAddingTask(true)} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
+  const handleUpdateTask = async (updatedTask) => {
+    try {
+      setLoading(true)
+      
+      // Update task in the Apper backend
+      const updated = await updateTask(updatedTask)
+      
+      // Update local state
+      setTasks(prev => 
+        prev.map(task => 
+          task.id === updated.id ? updated : task
+        )
       )
+      setEditingTask(null)
+      toast.success('Task updated successfully')
+    } catch (err) {
+      toast.error('Failed to update task')
+      console.error(err)
+    } finally {
+      setLoading(false)
     }
-    
-    // Apply priority filter
-    if (filter.priority) {
-      filtered = filtered.filter(task => task.priority === filter.priority)
-    }
-    
-    // Sort by creation date (id serves as timestamp)
-    filtered.sort((a, b) => {
-      const compareResult = parseInt(b.id) - parseInt(a.id)
-      return filter.sortDirection === 'asc' ? -compareResult : compareResult
-    })
-    
-    return filtered
   }
   
-  const filteredTasks = getFilteredTasks()
-  
-  // Task CRUD operations
-  const handleAddTask = (newTask) => {
-    setTasks(prev => [
-      { ...newTask, completed: false },
-      ...prev
-    ])
-    setIsAddingTask(false)
-    toast.success('Task added successfully')
-  }
-  
-  const handleUpdateTask = (updatedTask) => {
-    setTasks(prev => 
-      prev.map(task => 
-        task.id === updatedTask.id ? { ...updatedTask } : task
+  const handleToggleComplete = async (taskId) => {
+    try {
+      setLoading(true)
+      
+      // Toggle task completion in the Apper backend
+      const updatedTask = await toggleTaskCompletion(taskId)
+      
+      // Update local state
+      setTasks(prev => 
+        prev.map(task => 
+          task.id === taskId 
+            ? updatedTask
+            : task
+        )
       )
-    )
-    setEditingTask(null)
-    toast.success('Task updated successfully')
-  }
-  
-  const handleToggleComplete = (taskId) => {
-    setTasks(prev => 
-      prev.map(task => 
-        task.id === taskId 
-          ? { ...task, completed: !task.completed } 
-          : task
-      )
-    )
-    
-    // Find the task to see if it was completed or uncompleted
-    const task = tasks.find(t => t.id === taskId)
-    if (task) {
-      toast.info(`Task marked as ${!task.completed ? 'completed' : 'incomplete'}`)
+      
+      toast.info(`Task marked as ${updatedTask.completed ? 'completed' : 'incomplete'}`)
+    } catch (err) {
+      toast.error('Failed to update task')
+      console.error(err)
+    } finally {
+      setLoading(false)
     }
   }
   
-  const handleDeleteTask = (taskId) => {
-    setTasks(prev => prev.filter(task => task.id !== taskId))
-    toast.error('Task deleted')
+  const handleDeleteTask = async (taskId) => {
+    try {
+      setLoading(true)
+      
+      // Delete task from the Apper backend
+      await deleteTask(taskId)
+      
+      // Update local state
+      setTasks(prev => prev.filter(task => task.id !== taskId))
+      toast.error('Task deleted')
+    } catch (err) {
+      toast.error('Failed to delete task')
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
   }
   
   return (

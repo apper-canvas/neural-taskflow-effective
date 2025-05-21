@@ -1,14 +1,21 @@
-import { useState } from 'react'
+import { useState, useEffect, useContext } from 'react'
 import { motion } from 'framer-motion'
 import { getIcon } from '../utils/iconUtils'
+import { useNavigate } from 'react-router-dom'
 import MainFeature from '../components/MainFeature'
+import { AuthContext } from '../App'
+import { getTaskCounts } from '../services/taskService'
 
 const MoonIcon = getIcon('moon')
 const SunIcon = getIcon('sun')
 const GithubIcon = getIcon('github')
+const LogOutIcon = getIcon('log-out')
 
 const Home = ({ darkMode, toggleDarkMode }) => {
   const [activeTab, setActiveTab] = useState('all')
+  const { logout, isAuthenticated } = useContext(AuthContext)
+  const navigate = useNavigate()
+  const [taskCounts, setTaskCounts] = useState({ all: 0, today: 0, upcoming: 0, completed: 0 })
   
   // Animation variants
   const containerVariants = {
@@ -26,6 +33,22 @@ const Home = ({ darkMode, toggleDarkMode }) => {
     hidden: { y: 20, opacity: 0 },
     visible: { y: 0, opacity: 1 }
   }
+  
+  // Check authentication and redirect if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/login')
+    }
+  }, [isAuthenticated, navigate])
+  
+  // Load task counts
+  useEffect(() => {
+    const loadTaskCounts = async () => {
+      const counts = await getTaskCounts()
+      setTaskCounts(counts)
+    }
+    loadTaskCounts()
+  }, [])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-surface-50 to-surface-100 dark:from-surface-900 dark:to-surface-800">
@@ -68,6 +91,20 @@ const Home = ({ darkMode, toggleDarkMode }) => {
             >
               <GithubIcon className="h-5 w-5 text-surface-600 dark:text-surface-300" />
             </a>
+            
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={logout}
+              className="p-2 rounded-full bg-surface-100 dark:bg-surface-700 hover:bg-surface-200 dark:hover:bg-surface-600 transition-colors"
+              aria-label="Log out"
+              title="Log out"
+            >
+              <LogOutIcon 
+                className="h-5 w-5 text-surface-600 dark:text-surface-300" 
+                aria-hidden="true"
+              />
+            </motion.button>
           </div>
         </div>
       </header>
@@ -98,28 +135,28 @@ const Home = ({ darkMode, toggleDarkMode }) => {
                   onClick={() => setActiveTab('all')}
                   label="All Tasks"
                   iconName="list-checks"
-                  count={12}
+                  count={taskCounts.all}
                 />
                 <TabButton 
                   active={activeTab === 'today'} 
                   onClick={() => setActiveTab('today')}
                   label="Today"
                   iconName="calendar-check"
-                  count={5}
+                  count={taskCounts.today}
                 />
                 <TabButton 
                   active={activeTab === 'upcoming'} 
                   onClick={() => setActiveTab('upcoming')}
                   label="Upcoming"
                   iconName="calendar"
-                  count={7}
+                  count={taskCounts.upcoming}
                 />
                 <TabButton 
                   active={activeTab === 'completed'} 
                   onClick={() => setActiveTab('completed')}
                   label="Completed"
                   iconName="check-circle"
-                  count={23}
+                  count={taskCounts.completed}
                 />
               </div>
             </div>
