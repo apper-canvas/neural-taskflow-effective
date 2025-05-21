@@ -427,48 +427,35 @@ const MainFeature = ({ activeTab }) => {
     loadTasks()
   }, [activeTab, filter])
   
-        {loading ? (
-          // Loading state
-          <div className="py-10 flex flex-col items-center justify-center">
-            <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-surface-600 dark:text-surface-300">Loading tasks...</p>
-          </div>
-        ) : error ? (
-          // Error state
-          <div className="py-10 flex flex-col items-center justify-center text-center">
-            <div className="w-16 h-16 mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-              <XIcon className="h-8 w-8 text-red-500" />
-            </div>
-            <h3 className="text-lg font-medium text-red-600 dark:text-red-400 mb-2">
-              Error Loading Tasks
-            </h3>
-            <p className="text-surface-600 dark:text-surface-400 max-w-md mb-6">
-              {error}
-            </p>
-          </div>
-        ) : (
-          <AnimatePresence mode="popLayout">
-            {tasks.length > 0 ? (
-              tasks.map(task => (
-                  key={task.id}
-                  task={task}
-                  onToggleComplete={handleToggleComplete}
-                  onDelete={handleDeleteTask}
-                  onEdit={setEditingTask}
-                />
-              ))
-            ) : (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                key="empty-state"
-              >
-                <EmptyState onAddNew={() => setIsAddingTask(true)} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        )}
+  // Handle adding a new task
+  const handleAddTask = async (taskData) => {
+    try {
+      setLoading(true)
+      
+      // First, get or create tags and get their IDs
+      const tagObjects = await getOrCreateTags(taskData.tags)
+      
+      // We'll just use tag names for now
+      const updatedTaskData = {
+        ...taskData,
+        tags: tagObjects.map(t => t.name)
+      }
+      
+      // Create task in the Apper backend
+      const newTask = await createTask(updatedTaskData)
+      
+      // Update local state
+      setTasks(prev => [newTask, ...prev])
+      setIsAddingTask(false)
+      toast.success('Task added successfully')
+    } catch (err) {
+      toast.error('Failed to add task')
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
+  
   const handleUpdateTask = async (updatedTask) => {
     try {
       setLoading(true)
@@ -586,28 +573,49 @@ const MainFeature = ({ activeTab }) => {
       
       {/* Task List */}
       <div className="bg-surface-100/50 dark:bg-surface-800/30 backdrop-blur-sm rounded-xl p-4 sm:p-6 min-h-[300px]">
-        <AnimatePresence mode="popLayout">
-          {filteredTasks.length > 0 ? (
-            filteredTasks.map(task => (
-              <TaskItem
-                key={task.id}
-                task={task}
-                onToggleComplete={handleToggleComplete}
-                onDelete={handleDeleteTask}
-                onEdit={setEditingTask}
-              />
-            ))
-          ) : (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              key="empty-state"
-            >
-              <EmptyState onAddNew={() => setIsAddingTask(true)} />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {loading ? (
+          // Loading state
+          <div className="py-10 flex flex-col items-center justify-center">
+            <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-surface-600 dark:text-surface-300">Loading tasks...</p>
+          </div>
+        ) : error ? (
+          // Error state
+          <div className="py-10 flex flex-col items-center justify-center text-center">
+            <div className="w-16 h-16 mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+              <XIcon className="h-8 w-8 text-red-500" />
+            </div>
+            <h3 className="text-lg font-medium text-red-600 dark:text-red-400 mb-2">
+              Error Loading Tasks
+            </h3>
+            <p className="text-surface-600 dark:text-surface-400 max-w-md mb-6">
+              {error}
+            </p>
+          </div>
+        ) : (
+          <AnimatePresence mode="popLayout">
+            {tasks.length > 0 ? (
+              tasks.map(task => (
+                <TaskItem
+                  key={task.id}
+                  task={task}
+                  onToggleComplete={handleToggleComplete}
+                  onDelete={handleDeleteTask}
+                  onEdit={setEditingTask}
+                />
+              ))
+            ) : (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                key="empty-state"
+              >
+                <EmptyState onAddNew={() => setIsAddingTask(true)} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
       </div>
     </div>
   )
